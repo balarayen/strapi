@@ -2,109 +2,176 @@
 
 const _ = require('lodash');
 
-/**
- * A set of functions called "actions" for `ContentManager`
- */
+const parseMultipartBody = require('../utils/parse-multipart');
+const {
+  validateGenerateUIDInput,
+  validateCheckUIDAvailabilityInput,
+  validateUIDField,
+} = require('./validation');
 
 module.exports = {
-  layout: async (ctx) => {
-    const {source} = ctx.query;
+  async generateUID(ctx) {
+    const { contentTypeUID, field, data } = await validateGenerateUIDInput(ctx.request.body);
 
-    return ctx.send(_.get(strapi.plugins, [source, 'config', 'layout'], {}));
-  },
+    await validateUIDField(contentTypeUID, field);
 
-  models: async ctx => {
-    const pluginsStore = strapi.store({
-      environment: '',
-      type: 'plugin',
-      name: 'content-manager',
-    });
+    const uidService = strapi.plugins['content-manager'].services.uid;
 
-    const models = await pluginsStore.get({ key: 'schema' });
     ctx.body = {
-      models,
+      data: await uidService.generateUIDField({ contentTypeUID, field, data }),
     };
   },
 
-  find: async ctx => {
-    // Search
-    if (!_.isEmpty(ctx.request.query._q)) {
-      ctx.body = await strapi.plugins['content-manager'].services['contentmanager'].search(ctx.params, ctx.request.query);
+  async checkUIDAvailability(ctx) {
+    const { contentTypeUID, field, value } = await validateCheckUIDAvailabilityInput(
+      ctx.request.body
+    );
 
-      return;
+    await validateUIDField(contentTypeUID, field);
+
+    const uidService = strapi.plugins['content-manager'].services.uid;
+
+    const isAvailable = await uidService.checkUIDAvailability({ contentTypeUID, field, value });
+
+    ctx.body = {
+      isAvailable,
+      suggestion: !isAvailable
+        ? await uidService.findUniqueUID({ contentTypeUID, field, value })
+        : null,
+    };
+  },
+
+  /**
+   * Returns a list of entities of a content-type matching the query parameters
+   */
+  async find(ctx) {
+    const { model } = ctx.params;
+    const contentManagerService = strapi.plugins['content-manager'].services.contentmanager;
+
+    let entities = [];
+    if (_.has(ctx.request.query, '_q')) {
+      entities = await contentManagerService.search({ model }, ctx.request.query);
+    } else {
+      entities = await contentManagerService.fetchAll({ model }, ctx.request.query);
     }
 
-    // Default list with filters or not.
-    ctx.body = await strapi.plugins['content-manager'].services['contentmanager'].fetchAll(ctx.params, ctx.request.query);
+    ctx.body = entities;
   },
 
-  count: async ctx => {
-    // Search
-    const count = !_.isEmpty(ctx.request.query._q)
-      ? await strapi.plugins['content-manager'].services['contentmanager'].countSearch(ctx.params, ctx.request.query)
-      : await strapi.plugins['content-manager'].services['contentmanager'].count(ctx.params, ctx.request.query);
+  /**
+   * Returns an entity of a content type by id
+   */
+  async findOne(ctx) {
+    const { model, id } = ctx.params;
+    const contentManagerService = strapi.plugins['content-manager'].services.contentmanager;
 
-    ctx.body = {
-      count: _.isNumber(count) ? count : _.toNumber(count)
-    };
-  },
-
-  findOne: async ctx => {
-    const { source } = ctx.request.query;
-
-    // Find an entry using `queries` system
-    const entry = await strapi.plugins['content-manager'].services['contentmanager'].fetch(ctx.params, source, null, false);
+    const entry = await contentManagerService.fetch({ model, id });
 
     // Entry not found
     if (!entry) {
-      return (ctx.notFound('Entry not found'));
+      return ctx.notFound('Entry not found');
     }
 
     ctx.body = entry;
   },
 
-  create: async ctx => {
-    const { source } = ctx.request.query;
+  /**
+   * Returns a count of entities of a content type matching query parameters
+   */
+  async count(ctx) {
+    const { model } = ctx.params;
+    const contentManagerService = strapi.plugins['content-manager'].services.contentmanager;
+
+    let count;
+    if (_.has(ctx.request.query, '_q')) {
+      count = await contentManagerService.countSearch({ model }, ctx.request.query);
+    } else {
+      count = await contentManagerService.count({ model }, ctx.request.query);
+    }
+
+    ctx.body = {
+      count: _.isNumber(count) ? count : _.toNumber(count),
+    };
+  },
+
+  /**
+   * Creates an entity of a content type
+   */
+  async create(ctx) {
+    const contentManagerService = strapi.plugins['content-manager'].services.contentmanager;
+
+    const { model } = ctx.params;
 
     try {
-      // Create an entry using `queries` system
-      ctx.body = await strapi.plugins['content-manager'].services['contentmanager'].add(ctx.params, ctx.request.body, source);
-    } catch(error) {
+      if (ctx.is('multipart')) {
+        const { data, files } = parseMultipartBody(ctx);
+        ctx.body = await contentManagerService.create(data, { files, model });
+      } else {
+        // Create an entry using `queries` system
+        ctx.body = await contentManagerService.create(ctx.request.body, { model });
+      }
+
+      await strapi.telemetry.send('didCreateFirstContentTypeEntry', { model });
+    } catch (error) {
       strapi.log.error(error);
-      ctx.badRequest(null, ctx.request.admin ? [{ messages: [{ id: error.message, field: error.field }] }] : error.message);
+      ctx.badRequest(null, [
+        {
+          messages: [{ id: error.message, message: error.message, field: error.field }],
+          errors: _.get(error, 'data.errors'),
+        },
+      ]);
     }
   },
 
-  update: async ctx => {
-    const { source } = ctx.request.query;
+  /**
+   * Updates an entity of a content type
+   */
+  async update(ctx) {
+    const { id, model } = ctx.params;
+
+    const contentManagerService = strapi.plugins['content-manager'].services.contentmanager;
 
     try {
-      // Return the last one which is the current model.
-      ctx.body = await strapi.plugins['content-manager'].services['contentmanager'].edit(ctx.params, ctx.request.body, source);
-    } catch(error) {
-      // TODO handle error update
+      if (ctx.is('multipart')) {
+        const { data, files } = parseMultipartBody(ctx);
+        ctx.body = await contentManagerService.edit({ id }, data, {
+          files,
+          model,
+        });
+      } else {
+        // Return the last one which is the current model.
+        ctx.body = await contentManagerService.edit({ id }, ctx.request.body, {
+          model,
+        });
+      }
+    } catch (error) {
       strapi.log.error(error);
-      ctx.badRequest(null, ctx.request.admin ? [{ messages: [{ id: error.message, field: error.field }] }] : error.message);
+      ctx.badRequest(null, [
+        {
+          messages: [{ id: error.message, message: error.message, field: error.field }],
+          errors: _.get(error, 'data.errors'),
+        },
+      ]);
     }
   },
 
-  updateSettings: async ctx => {
-    const { schema } = ctx.request.body;
-    const pluginStore = strapi.store({
-      environment: '',
-      type: 'plugin',
-      name: 'content-manager'
-    });
-    await pluginStore.set({ key: 'schema', value: schema });
+  /**
+   * Deletes one entity of a content type matching a query
+   */
+  async delete(ctx) {
+    const { id, model } = ctx.params;
+    const contentManagerService = strapi.plugins['content-manager'].services.contentmanager;
 
-    return ctx.body = { ok: true };
+    ctx.body = await contentManagerService.delete({ id, model });
   },
 
-  delete: async ctx => {
-    ctx.body = await strapi.plugins['content-manager'].services['contentmanager'].delete(ctx.params, ctx.request.query);
-  },
+  /**
+   * Deletes multiple entities of a content type matching a query
+   */
+  async deleteMany(ctx) {
+    const { model } = ctx.params;
+    const contentManagerService = strapi.plugins['content-manager'].services.contentmanager;
 
-  deleteAll: async ctx => {
-    ctx.body = await strapi.plugins['content-manager'].services['contentmanager'].deleteMany(ctx.params, ctx.request.query);
-  }
+    ctx.body = await contentManagerService.deleteMany({ model }, ctx.request.query);
+  },
 };

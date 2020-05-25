@@ -18,12 +18,10 @@ module.exports = strapi => {
      * Initialize the hook
      */
 
-    initialize: function(cb) {
-      _.forEach(_.keys(strapi.config.functions.cron), task => {
+    initialize() {
+      _.forEach(_.keys(strapi.config.get('functions.cron', {})), task => {
         cron.scheduleJob(task, strapi.config.functions.cron[task]);
       });
-
-      cb();
-    }
+    },
   };
 };

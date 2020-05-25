@@ -1,25 +1,41 @@
 /**
-*
-* LeftMenuFooter
-*
-*/
+ *
+ * LeftMenuFooter
+ *
+ */
 
 import React from 'react';
 import { defineMessages, FormattedMessage } from 'react-intl';
 import { PropTypes } from 'prop-types';
 
-import styles from './styles.scss';
+import Wrapper from './Wrapper';
 import messages from './messages.json';
+
 defineMessages(messages);
 
-function LeftMenuFooter({ version }) { // eslint-disable-line react/prefer-stateless-function
+function LeftMenuFooter({ version }) {
   return (
-    <div className={styles.leftMenuFooter}>
-      <div>
-        <FormattedMessage {...messages.poweredBy} />
-        <a href="https://strapi.io" target="_blank">v{version}</a>
+    <Wrapper>
+      <div className="poweredBy">
+        <FormattedMessage
+          id={messages.poweredBy.id}
+          defaultMessage={messages.poweredBy.defaultMessage}
+          key="poweredBy"
+        />
+        <a key="website" href="https://strapi.io" target="_blank" rel="noopener noreferrer">
+          Strapi
+        </a>
+        &nbsp;
+        <a
+          href={`https://github.com/strapi/strapi/releases/tag/v${version}`}
+          key="github"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          v{version}
+        </a>
       </div>
-    </div>
+    </Wrapper>
   );
 }
 
