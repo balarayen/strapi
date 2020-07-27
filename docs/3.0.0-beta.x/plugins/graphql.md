@@ -1,6 +1,6 @@
 # GraphQL
 
-By default Strapi create [REST endpoints](../content-api/api-endpoints) for each of your content types. With the GraphQL plugin, you will be able to add a GraphQL endpoint to fetch and mutate your content.
+By default Strapi create [REST endpoints](../content-api/api-endpoints.md) for each of your content types. With the GraphQL plugin, you will be able to add a GraphQL endpoint to fetch and mutate your content.
 
 ## Usage
 
@@ -48,9 +48,11 @@ Security limits on maximum number of items in your response by default is limite
 
 You can also enable the Apollo server tracing feature, which is supported by the playground to track the response time of each part of your query. To enable this feature just change/add the `"tracing": true` option in the GraphQL settings file. You can read more about the tracing feature from Apollo [here](https://www.apollographql.com/docs/apollo-server/federation/metrics/).
 
+You can also enable Strapi as an implementing service for Apollo Federation, which allows you to set up Strapi as a service behind an Apollo Federation API gateway and allows you to add Strapi to a single exposed data graph across your organization. You can read more about Apollo Federation [here](https://www.apollographql.com/docs/apollo-server/federation/introduction/).
+
 You can edit these configurations by creating following file.
 
-**Path —** `./extensions/graphql/config/settings.json`
+**Path —** `./extensions/graphql/config/settings.json`.
 
 ```json
 {
@@ -59,7 +61,8 @@ You can edit these configurations by creating following file.
   "shadowCRUD": true,
   "playgroundAlways": false,
   "depthLimit": 7,
-  "amountLimit": 100
+  "amountLimit": 100,
+  "federation": false
 }
 ```
 
@@ -264,14 +267,14 @@ query {
 To simplify and automate the build of the GraphQL schema, we introduced the Shadow CRUD feature. It automatically generates the type definition, queries, mutations and resolvers based on your models. The feature also lets you make complex query with many arguments such as `limit`, `sort`, `start` and `where`.
 
 ::: tip NOTE
-If you use a local plugin, the controller methods of your plugin are not created by default. In order for the Shadow CRUD to work you have to define them in your controllers for each of your models. You can find examples of controllers `findOne`, `find`, `create`, `update` and `delete` there : [Core controllers](../concepts/controllers.html#core-controllers).
+If you use a local plugin, the controller methods of your plugin are not created by default. In order for the Shadow CRUD to work you have to define them in your controllers for each of your models. You can find examples of controllers `findOne`, `find`, `create`, `update` and `delete` there : [Core controllers](../concepts/controllers.md#core-controllers).
 :::
 
 ### Example
 
 If you've generated an API called `Restaurant` using the CLI `strapi generate:api restaurant` or the administration panel, your model looks like this:
 
-**Path —** `./api/restaurant/models/Restaurant.settings.json`
+**Path —** `./api/restaurant/models/Restaurant.settings.json`.
 
 ```json
 {
@@ -478,9 +481,9 @@ Result
 
 ## Customise the GraphQL schema
 
-If you want to define a new scalar, input or enum types, this section is for you. To do so, you will have to create a `schema.graphql.js` file. This file has to be placed into the config folder of each API `./api/*/config/schema.graphql.js` or plugin `./extensions/*/config/schema.graphql.js`.
+If you want to define a new scalar, input or enum types, this section is for you. To do so, you will have to create a `schema.graphql` file. This file has to be placed into the config folder of each API `./api/*/config/schema.graphql` or plugin `./extensions/*/config/schema.graphql`.
 
-**Structure —** `schema.graphql.js`.
+**Structure —** `schema.graphql`.
 
 ```js
 module.exports = {
@@ -505,11 +508,11 @@ module.exports = {
 
 Let say we are using the same previous `Restaurant` model.
 
-**Path —** `./api/restaurant/config/schema.graphql.js`
+**Path —** `./api/restaurant/config/schema.graphql`.
 
 ```js
 module.exports = {
-  definition: `
+  definition:`
     enum RestaurantStatusInput {
       work
       open
@@ -530,38 +533,37 @@ module.exports = {
       },
       restaurants: {
         description: 'Return a list of restaurants', // Add a description to the query.
-        deprecated:
-          'This query should not be used anymore. Please consider using restaurantsByChef instead.',
+        deprecated: 'This query should not be used anymore. Please consider using restaurantsByChef instead.'
       },
       restaurantsByChef: {
         description: 'Return the restaurants open by the chef',
-        resolver: 'application::restaurant.restaurant.findByChef',
+        resolver: 'application::restaurant.restaurant.findByChef'
       },
       restaurantsByCategories: {
         description: 'Return the restaurants open by the category',
         resolverOf: 'application::restaurant.restaurant.findByCategories', // Will apply the same policy on the custom resolver as the controller's action `findByCategories`.
-        resolver: async (obj, options, ctx) => {
+        resolver: (obj, options, ctx) => {
           // ctx is the context of the Koa request.
           await strapi.controllers.restaurants.findByCategories(ctx);
 
           return ctx.body.restaurants || `There is no restaurant.`;
-        },
-      },
+        }
+      }
     },
     Mutation: {
       attachRestaurantToChef: {
         description: 'Attach a restaurant to an chef',
         policies: ['plugins::users-permissions.isAuthenticated', 'isOwner'],
-        resolver: 'application::restaurant.restaurant.attachToChef',
-      },
-    },
-  },
+        resolver: 'application::restaurant.restaurant.attachToChef'
+      }
+    }
+  }
 };
 ```
 
 ### Define a new type
 
-Edit the `definition` attribute in one of the `schema.graphql.js` files of your project by using the GraphQL Type language string.
+Edit the `definition` attribute in one of the `schema.graphql` files of your project by using the GraphQL Type language string.
 
 ::: tip
 The easiest way is to create a new model using the CLI `strapi generate:model category --api restaurant`, so you don't need to customise anything.
@@ -642,7 +644,7 @@ module.exports = {
 
 One of the most powerful features of GraphQL is the auto-documentation of the schema. The GraphQL plugin allows you to add a description to a type, a field and a query. You can also deprecate a field or a query.
 
-**Path —** `./api/restaurant/models/Restaurant.settings.json`
+**Path —** `./api/restaurant/models/Restaurant.settings.json`.
 
 ```json
 {
@@ -671,13 +673,13 @@ One of the most powerful features of GraphQL is the auto-documentation of the sc
 }
 ```
 
-It might happen that you want to add a description to a query or deprecate it. To do that, you need to use the `schema.graphql.js` file.
+It might happen that you want to add a description to a query or deprecate it. To do that, you need to use the `schema.graphql` file.
 
 ::: warning
-The `schema.graphql.js` file has to be placed into the config folder of each API `./api/*/config/schema.graphql.js` or plugin `./extensions/*/config/schema.graphql.js`.
+The `schema.graphql` file has to be placed into the config folder of each API `./api/*/config/schema.graphql` or plugin `./extensions/*/config/schema.graphql`.
 :::
 
-**Path —** `./api/restaurant/config/schema.graphql.js`
+**Path —** `./api/restaurant/config/schema.graphql`.
 
 ```js
 module.exports = {
@@ -779,29 +781,27 @@ module.exports = {
         resolver: (obj, options, { context }) => {
           // You can return a raw JSON object or a promise.
 
-          return [
-            {
-              name: 'My first blog restaurant',
-              description: 'Whatever you want...',
-            },
-          ];
-        },
-      },
+          return [{
+            name: 'My first blog restaurant',
+            description: 'Whatever you want...'
+          }];
+        }
+      }
     },
     Mutation: {
       updateRestaurant: {
         description: 'Update an existing restaurant',
-        resolver: async (obj, options, { context }) => {
+        resolver: (obj, options, { context }) => {
           // The `where` and `data` parameters passed as arguments
           // of the GraphQL mutation are available via the `context` object.
           const where = context.params;
           const data = context.request.body;
 
           return await strapi.api.restaurant.services.restaurant.addRestaurant(data, where);
-        },
-      },
-    },
-  },
+        }
+      }
+    }
+  }
 };
 ```
 
@@ -821,49 +821,47 @@ module.exports = {
         resolver: (obj, options, context) => {
           // You can return a raw JSON object or a promise.
 
-          return [
-            {
-              name: 'My first blog restaurant',
-              description: 'Whatever you want...',
-            },
-          ];
-        },
-      },
+          return [{
+            name: 'My first blog restaurant',
+            description: 'Whatever you want...'
+          }];
+        }
+      }
     },
     Mutation: {
       updateRestaurant: {
         description: 'Update an existing restaurant',
         resolverOf: 'application::restaurant.restaurant.update', // Will apply the same policy on the custom resolver than the controller's action `update` located in `Restaurant.js`.
-        resolver: async (obj, options, { context }) => {
+        resolver: (obj, options, { context }) => {
           const where = context.params;
           const data = context.request.body;
 
           return await strapi.api.restaurant.services.restaurant.addRestaurant(data, where);
-        },
-      },
-    },
-  },
+        }
+      }
+    }
+  }
 };
 ```
 
 ### Disable a query or a type
 
-To do that, we need to use the `schema.graphql.js` like below:
+To do that, we need to use the `schema.graphql` like below:
 
 ```js
 module.exports = {
   type: {
-    Restaurant: false, // The Restaurant type won't be "queriable" or "mutable".
-  },
+    Restaurant: false // The Restaurant type won't be "queriable" or "mutable".
+  }
   resolver: {
     Query: {
-      restaurants: false, // The `restaurants` query will no longer be in the GraphQL schema.
+      restaurants: false // The `restaurants` query will no longer be in the GraphQL schema.
     },
     Mutation: {
       createRestaurant: false,
-      deletePOst: false,
-    },
-  },
+      deletePOst: false
+    }
+  }
 };
 ```
 
@@ -878,7 +876,7 @@ The type name is the global ID of the model. You can find the global ID of a mod
 We recommend putting the field description and deprecated reason in the model. Right now, the GraphQL plugin is the only which uses these fields. Another plugin could use this description in the future as well. However, sometimes you don't have the choice, especially when you're defining a custom type.
 
 ::: tip
-It's not a bad practice to put the description and deprecated attribute in the `schema.graphql.js`, though.
+It's not a bad practice to put the description and deprecated attribute in the `schema.graphql`, though.
 :::
 
 **Why are the "createdAt" and "updatedAt" field added to my type?**

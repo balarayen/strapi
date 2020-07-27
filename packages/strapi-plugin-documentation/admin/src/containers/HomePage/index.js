@@ -11,15 +11,18 @@ import { CopyToClipboard } from 'react-copy-to-clipboard';
 import { bindActionCreators, compose } from 'redux';
 import { get, isEmpty } from 'lodash';
 import { Header } from '@buffetjs/custom';
+import { Button } from '@buffetjs/core';
 import {
   auth,
   PopUpWarning,
   LoadingIndicatorPage,
   InputsIndex as Input,
   GlobalContext,
+  CheckPermissions,
 } from 'strapi-helper-plugin';
 
 import pluginId from '../../pluginId';
+import pluginPermissions from '../../permissions';
 import getTrad from '../../utils/getTrad';
 
 import Block from '../../components/Block';
@@ -52,7 +55,7 @@ export class HomePage extends React.Component {
   };
 
   getPluginHeaderActions = () => {
-    return [
+    const actions = [
       {
         color: 'none',
         label: this.context.formatMessage({
@@ -62,6 +65,11 @@ export class HomePage extends React.Component {
         onClick: this.openCurrentDocumentation,
         type: 'button',
         key: 'button-open',
+        Component: props => (
+          <CheckPermissions permissions={pluginPermissions.open}>
+            <Button {...props} />
+          </CheckPermissions>
+        ),
       },
       {
         label: this.context.formatMessage({
@@ -71,8 +79,15 @@ export class HomePage extends React.Component {
         onClick: () => {},
         type: 'submit',
         key: 'button-submit',
+        Component: props => (
+          <CheckPermissions permissions={pluginPermissions.update}>
+            <Button {...props} />
+          </CheckPermissions>
+        ),
       },
     ];
+
+    return actions;
   };
 
   handleCopy = () => {
@@ -80,9 +95,10 @@ export class HomePage extends React.Component {
   };
 
   openCurrentDocumentation = () => {
-    const { currentDocVersion } = this.props;
+    const { currentDocVersion, prefix } = this.props;
+    const slash = prefix.startsWith('/') ? '' : '/';
 
-    return openWithNewTab(`/documentation/v${currentDocVersion}`);
+    return openWithNewTab(`${slash}${prefix}/v${currentDocVersion}`);
   };
 
   shouldHideInput = inputName => {
@@ -141,6 +157,7 @@ export class HomePage extends React.Component {
       onSubmit,
       versionToDelete,
     } = this.props;
+
     const { formatMessage } = this.context;
 
     if (isLoading) {
@@ -192,7 +209,9 @@ export class HomePage extends React.Component {
                 </div>
               </CopyToClipboard>
             </Block>
-            <Block>{form.map(this.renderForm)}</Block>
+            <CheckPermissions permissions={pluginPermissions.update}>
+              <Block>{form.map(this.renderForm)}</Block>
+            </CheckPermissions>
             <Block title={getTrad('containers.HomePage.Block.title')}>
               <VersionWrapper>
                 <Row isHeader />
@@ -218,6 +237,7 @@ HomePage.defaultProps = {
   onConfirmDeleteDoc: () => {},
   onSubmit: () => {},
   onUpdateDoc: () => {},
+  prefix: '/documentation',
   versionToDelete: '',
 };
 
@@ -234,6 +254,7 @@ HomePage.propTypes = {
   onConfirmDeleteDoc: PropTypes.func,
   onSubmit: PropTypes.func,
   onUpdateDoc: PropTypes.func,
+  prefix: PropTypes.string,
   versionToDelete: PropTypes.string,
 };
 
